@@ -170,7 +170,7 @@ void process(int client_socket, float drop_probability)
 int setup_connection(int port)
 {
     // create a new socket witch AF_INET for internet domain, stream socket option, TCP(given by os) - reliable, connection oriented
-    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) < -1)
+    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         perror("socket: ");
         return FAIL;
