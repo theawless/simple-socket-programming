@@ -18,10 +18,12 @@ void append_remainder(char *mod_message, char *crc_key)
     char temp[30], quotient[100], remainder[30], temp_key[30];
     int i, j, key_length = strlen(crc_key), message_length = strlen(mod_message);
     strcpy(temp_key, crc_key);
+    // add zeroes to the end of message
     for (i = 0; i < key_length - 1; i++)
     {
         mod_message[message_length + i] = '0';
     }
+    // crc division algorithm
     for (i = 0; i < key_length; i++)
     {
         temp[i] = mod_message[i];
@@ -58,6 +60,7 @@ void append_remainder(char *mod_message, char *crc_key)
         strcpy(temp, remainder);
     }
     strcpy(remainder, temp);
+    // append the remainder
     for (i = 0; i < key_length - 1; i++)
     {
         mod_message[message_length + i] = remainder[i];
@@ -93,6 +96,7 @@ void add_error(char *mod_message, float BER)
     unsigned int i;
     for (i = 0; i < strlen(mod_message); i++)
     {
+        // randomly flip bits in the message
         if ((float)rand() / RAND_MAX < BER)
         {
             if (mod_message[i] == '0')
@@ -123,6 +127,7 @@ void message_transform(const char *message, char *mod_message, float BER)
 
 int communicate(int client_socket, char *mod_message)
 {
+    // send to the socket
     if (send(client_socket, mod_message, strlen(mod_message), 0) < 0)
     {
         fprintf(stderr, "Sent error...\n");
@@ -132,6 +137,7 @@ int communicate(int client_socket, char *mod_message)
 
     int reply_length;
     char reply[64];
+    // receive from the socket
     if ((reply_length = recv(client_socket, reply, 64, 0)) < 0)
     {
         fprintf(stderr, "Timeout. Re-transmitting...\n");
@@ -157,7 +163,8 @@ int communicate(int client_socket, char *mod_message)
 
 int setup_connection(int port, char *address)
 {
-    int client_socket;
+    int client_socket; // client fd
+    // create a new socket witch AF_INET for internet domain, stream socket option, TCP(given by os) - reliable, connection oriented
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         perror("Socket creation: ");
@@ -166,16 +173,18 @@ int setup_connection(int port, char *address)
 
     struct sockaddr_in server;
     server.sin_family = AF_INET;
-    server.sin_port = htons(port);
+    server.sin_port = htons(port); // convert a port number in host byte order to a port number in network byte order
     server.sin_addr.s_addr = inet_addr(address);
-    bzero(&server.sin_zero, 8);
+    bzero(&server.sin_zero, 8); // clears the buffer
 
     struct timeval time_val;
     time_val.tv_sec = 5;  // 5 Secs timeout
-    time_val.tv_usec = 0; // Not initialising this can cause strange errors
+    time_val.tv_usec = 0; // not initialising this can cause strange errors
 
+    // set socket option for timeout
     setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&time_val, sizeof(struct timeval));
 
+    // connect the socket referred by the fd to the address specified by socket address
     if (connect(client_socket, (struct sockaddr *)&server, sizeof(struct sockaddr_in)) < 0)
     {
         perror("Connecting: ");
