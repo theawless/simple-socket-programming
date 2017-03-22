@@ -14,6 +14,7 @@
 #define ACK "ACK"
 #define NACK "NACK"
 
+// global so we can close them from the signal handler
 int server_socket, client_socket;
 
 int check_crc(char *input, char *crc_key)
@@ -61,6 +62,8 @@ int check_crc(char *input, char *crc_key)
         strcpy(temp, remainder);
     }
     strcpy(remainder, temp);
+
+    // if the remainder is 0, then the input is correct
     for (i = 0; i < key_length - 1; i++)
     {
         if (remainder[i] != '0')
@@ -71,6 +74,7 @@ int check_crc(char *input, char *crc_key)
     return SUCCESS;
 }
 
+// a Olog(n) power calculating function
 float pow(float x, int y)
 {
     float temp;
@@ -100,6 +104,7 @@ void show_message(char *message, int data_len)
 {
     printf("Message received: ");
     unsigned int i;
+    // convert the data from bits to char
     for (i = 0; i < data_len - 8; i++)
     {
         int j;
@@ -123,9 +128,12 @@ void process(int client_socket, float drop_probability)
     do
     {
         char message[1024];
+        // receive from the socket
         data_len = read(client_socket, message, 1024);
         message[data_len] = '\0';
         char crc_key[20] = "100000111";
+
+        // if crc is check is true, we have the correct data and we send ack else we send nack
         if (data_len && check_crc(message, crc_key) == SUCCESS)
         {
             show_message(message, data_len);
@@ -135,6 +143,7 @@ void process(int client_socket, float drop_probability)
                 printf("Packet dropped!\n");
                 continue;
             }
+            // send to the socket
             int sent = send(client_socket, ACK, strlen(ACK), 0);
             printf("Sent successfully!\n");
         }
@@ -147,6 +156,7 @@ void process(int client_socket, float drop_probability)
                 printf("Packet dropped!\n");
                 continue;
             }
+            // send to the socket
             int sent = send(client_socket, NACK, strlen(NACK), 0);
             printf("Sent successfully!\n");
         }
@@ -154,11 +164,12 @@ void process(int client_socket, float drop_probability)
         {
             close(client_socket);
         }
-    } while (data_len);
+    } while (data_len); // continue till we get proper data from the socket
 }
 
 int setup_connection(int port)
 {
+    // create a new socket witch AF_INET for internet domain, stream socket option, TCP(given by os) - reliable, connection oriented
     if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) < -1)
     {
         perror("socket: ");
@@ -168,10 +179,11 @@ int setup_connection(int port)
 
     struct sockaddr_in server;
     server.sin_family = AF_INET;
-    server.sin_port = htons(port);
+    server.sin_port = htons(port); // convert a port number in host byte order to a port number in network byte order
     server.sin_addr.s_addr = INADDR_ANY;
-    bzero(&server.sin_zero, 8);
+    bzero(&server.sin_zero, 8); // clears the buffer
 
+    // bind function binds the socket to the address and port number specified in addr
     if ((bind(server_socket, (struct sockaddr *)&server, sizeof(struct sockaddr_in)) < 0))
     {
         perror("binding: ");
@@ -179,6 +191,9 @@ int setup_connection(int port)
     }
     printf("Done with binding...\n");
 
+    // put the server socket in a passive mode, where it waits for the client to approach the server to make a connection
+    // 5 defines the maximum length to which the queue of pending connections for sockfd may grow
+    // if a connection request arrives when the queue is full, the client may receive an error
     if ((listen(server_socket, 5)) < 0)
     {
         perror("listening: ");
@@ -203,6 +218,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "Usage: ./server port\n");
         return EXIT_FAILURE;
     }
+
+    // handle the interrup signal like ctrl + c
     signal(SIGINT, signal_callback);
     float drop_probability;
     printf("Enter probability to drop packets: ");
@@ -218,6 +235,10 @@ int main(int argc, char **argv)
     {
         struct sockaddr_in client;
         unsigned int len;
+
+        // extract the first connection request on the queue of pending connections for the listening socket
+        // creates a new connected socket, and returns a new file descriptor referring to that socket
+        // connection is established between client and server, and they are ready to transfer data
         if ((client_socket = accept(server_socket, (struct sockaddr *)&client, &len)) < 0)
         {
             perror("Accepting: ");
@@ -233,13 +254,18 @@ int main(int argc, char **argv)
         }
         if (pid == 0)
         {
+            // child process closes the old socket and works with the new one
             close(server_socket);
             process(client_socket, drop_probability);
             printf("Done...You can terminate the server now!\n");
+
+            // after working with the new socket, it simply exits
             return EXIT_SUCCESS;
         }
         else
         {
+            // parent process does not need new socket, so it closes it
+            // and keeps listening on old socket
             close(client_socket);
         }
     }
